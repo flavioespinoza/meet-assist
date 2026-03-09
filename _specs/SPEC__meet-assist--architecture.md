@@ -1,5 +1,6 @@
 # meet-assist — Architecture
-Date: Mar 09 2026
+
+v1 | Date: Mar 09 2026
 
 Hardware: MacBook Pro M4 Silicon (2025)
 
