@@ -1,31 +1,19 @@
 # meet-assist
 
-Real-time meeting assistant. Listens to a call, transcribes with speaker diarization via Deepgram, and feeds the live transcript to Claude for real-time answers.
+Real-time meeting assistant. Listens to a call, transcribes with speaker diarization via Deepgram, and feeds the live transcript to Claude for real-time answers — all through a web UI.
 
 ## Prerequisites
 
-- **Python 3.10+**
+- **Node.js 18+** and **npm**
+- **Python 3.10+** (for the audio listener)
 - **PortAudio** (required by `sounddevice`)
-- **Claude Code CLI** installed and authenticated
 - **Deepgram account** with an API key ([deepgram.com](https://deepgram.com))
+- **Anthropic API key** (for Claude streaming responses)
 
 ### Install PortAudio (macOS)
 
 ```bash
 brew install portaudio
-```
-
-### Install Claude Code CLI
-
-```bash
-npm install -g @anthropic-ai/claude-code
-```
-
-Authenticate:
-
-```bash
-claude
-# Follow the prompts to sign in
 ```
 
 ## Setup
@@ -35,24 +23,20 @@ git clone git@github.com:flavioespinoza/meet-assist.git
 cd meet-assist
 ```
 
-### 1. Install Python dependencies
+### 1. Install dependencies
 
 ```bash
+npm install
 pip install -r requirements.txt
 ```
 
-This installs:
-- `sounddevice` — low-latency mic capture (wraps PortAudio)
-- `deepgram-sdk` — Deepgram WebSocket client for real-time transcription
-- `python-dotenv` — loads environment variables from `.env`
-
-### 2. Configure your Deepgram API key
+### 2. Configure API keys
 
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env` and replace the placeholder:
+Edit `.env` and set your Deepgram key:
 
 ```
 DEEPGRAM_API_KEY=your_actual_key_here
@@ -60,19 +44,14 @@ DEEPGRAM_API_KEY=your_actual_key_here
 
 Get a key at [console.deepgram.com](https://console.deepgram.com) → API Keys.
 
-### 3. Make the watcher executable
+Make sure your `ANTHROPIC_API_KEY` is set in your environment (e.g. via `~/.zkeys` or your shell profile).
 
-```bash
-chmod +x src/watcher.sh
-```
+### 3. Load session context (before each call)
 
-### 4. Load session context (before each call)
-
-Copy any relevant spec/reference files into `src/context/`. These are injected into every Claude prompt during the call:
+Copy any relevant spec/reference files into `src/context/`. These are injected into Claude's system prompt during the call:
 
 ```bash
 cp _specs/SPEC__sol-bot--architecture.md src/context/
-cp _specs/SPEC__sol-bot--agent-prompts.md src/context/
 ```
 
 Clear the directory between calls if context changes:
@@ -83,62 +62,32 @@ rm src/context/*
 
 ## Running
 
-You need **two terminal windows** open side by side.
-
-### Terminal 1 — Listener (mic → transcript)
+Start the audio listener (mic capture → Deepgram → transcript file):
 
 ```bash
 python src/listener.py
 ```
 
-This captures your mic audio, streams it to Deepgram for real-time transcription with speaker diarization, and appends each utterance as a JSON line to `transcript.jsonl`.
-
-You should see output like:
-
-```
-meet-assist listener starting...
-Transcript file: /path/to/meet-assist/transcript.jsonl
-Connected to Deepgram. Listening...
-[Speaker_0] Tell me about the SDK integration.
-[Speaker_1] Sure, let me walk you through it.
-```
-
-### Terminal 2 — Watcher (transcript → Claude responses)
+In a second terminal, start the frontend:
 
 ```bash
-./src/watcher.sh
+npm run dev
 ```
 
-This watches `transcript.jsonl` for new lines (polling every 0.5s), sends each new utterance to Claude with your session context, and displays the response as teleprompter text.
+Open [localhost:3000](http://localhost:3000) in your browser.
 
-You should see output like:
+### How it works
 
-```
-=== meet-assist watcher ===
-Watching: /path/to/meet-assist/transcript.jsonl
-Waiting for new utterances...
+The browser shows a two-panel layout:
 
-────────────────────────────────────
-[Speaker_0]: What's the latency on the WebSocket connection?
-────────────────────────────────────
+- **Left panel (chat)** — Full conversational chat with Claude. Type messages or click utterances from the right panel to focus Claude on a specific part of the conversation. Claude streams responses token-by-token and maintains full conversation history.
+- **Right panel (live stream)** — Real-time scrolling feed of transcript utterances, color-coded by speaker. Click any utterance to send it to the chat panel. Copy button on each card.
 
->>> Claude:
-The Deepgram WebSocket typically adds ~300ms latency for final transcripts...
-```
-
-### Protocol Commands
-
-While the watcher is running, type commands directly into Terminal 2:
-
-| Command | What it does |
-|---------|-------------|
-| `STOP` | Ignore the last utterance and reset. Use when things get out of sync. |
-| `EXPAND` | Get a detailed expansion of the last Claude response. |
-| Any other text | Send your own text to Claude as a manual override (bypasses the transcript). |
+The WebSocket server on `:3001` watches `transcript.jsonl` for new lines and streams them to the browser in real time.
 
 ## Stopping
 
-Press `Ctrl+C` in each terminal to stop the listener and watcher.
+Press `Ctrl+C` in each terminal to stop the listener and the dev server.
 
 ## Transcript Format
 
@@ -152,22 +101,42 @@ Each line in `transcript.jsonl`:
 - `text` — the transcribed utterance
 - `timestamp` — Unix epoch seconds
 
-The file is **gitignored** and never committed. It resets between sessions (delete it manually or let it accumulate).
+The file is **gitignored** and never committed.
 
 ## File Structure
 
 ```
 meet-assist/
+├── app/                        ← Next.js App Router
+│   ├── layout.tsx              ← Root layout, metadata
+│   ├── page.tsx                ← Main page (chat + live stream panels)
+│   └── globals.css             ← Tailwind styles + color variables
+├── server/                     ← Backend services (TypeScript)
+│   ├── ws-server.ts            ← WebSocket server (:3001)
+│   ├── transcript-watcher.ts   ← chokidar watcher for transcript.jsonl
+│   ├── claude-conversation.ts  ← Anthropic SDK multi-turn + streaming
+│   └── context-loader.ts       ← Reads src/context/* at startup
+├── components/                 ← React components
+│   ├── chat-panel.tsx          ← Left panel (chat interface)
+│   ├── chat-message.tsx        ← Message bubble
+│   ├── chat-input.tsx          ← Text input + Send button
+│   ├── live-stream.tsx         ← Right panel (scrolling transcript)
+│   └── chat-card.tsx           ← Utterance card (clickable, color-coded)
+├── hooks/
+│   └── use-copy-clipboard.ts   ← Copy utterance text to clipboard
+├── lib/
+│   └── utils.ts                ← Utility functions
 ├── src/
-│   ├── listener.py       ← mic capture → Deepgram → transcript.jsonl
-│   ├── watcher.sh        ← watches transcript → Claude responses
-│   └── context/          ← spec files loaded at session start
-├── _specs/               ← project specs and architecture docs
-├── transcript.jsonl      ← live transcript (gitignored)
-├── .env                  ← DEEPGRAM_API_KEY (gitignored)
+│   ├── listener.py             ← Mic capture → Deepgram → transcript.jsonl
+│   └── context/                ← Spec files loaded at session start
+├── _specs/                     ← Project specs and architecture docs
+├── transcript.jsonl            ← Live transcript (gitignored)
+├── .env                        ← API keys (gitignored)
 ├── .env.example
+├── package.json
 ├── requirements.txt
-└── package.json
+├── tsconfig.json
+└── next.config.js
 ```
 
 ## Architecture
@@ -178,16 +147,9 @@ See [`_specs/SPEC__architecture.md`](_specs/SPEC__architecture.md) for the full 
 
 ### "Error: DEEPGRAM_API_KEY not set in .env"
 
-Make sure `.env` exists and contains your key:
-
-```bash
-cat .env
-# Should show: DEEPGRAM_API_KEY=dg-...
-```
+Make sure `.env` exists and contains your key.
 
 ### "No module named 'sounddevice'"
-
-Install dependencies:
 
 ```bash
 pip install -r requirements.txt
@@ -203,8 +165,8 @@ brew install portaudio  # macOS
 
 Check that your API key is valid and has streaming permissions at [console.deepgram.com](https://console.deepgram.com).
 
-### Watcher shows no responses
+### Frontend not showing utterances
 
-- Make sure `claude` CLI is installed and authenticated: `claude --version`
-- Check that `transcript.jsonl` is being written to: `tail -f transcript.jsonl`
-- Verify context files exist: `ls src/context/`
+- Make sure `listener.py` is running and writing to `transcript.jsonl`
+- Check the browser console for WebSocket connection errors
+- Verify the dev server is running on port 3000 and the WebSocket server on port 3001
