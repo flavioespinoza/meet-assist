@@ -9,9 +9,5 @@ meeting-*.json
 
 # === Override global gitignore for this project ===
 # The global .gitignore_global blocks heavy files by default.
-# Uncomment lines below to ALLOW specific file types in this repo:
-#
-# !*.png
-# !*.jpg
-# !assets/*.png
-# !docs/images/*.png
+# Allow design reference images in _specs/
+!_specs/images/*.png
