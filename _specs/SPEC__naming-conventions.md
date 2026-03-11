@@ -1,12 +1,14 @@
 # SPEC: Naming Conventions
 
-v1 | Mar 09 2026 - 07:56 PM (MST)
+v2 | Mar 11 2026 - 08:30 PM (MST)
 
-## Rule
+**Canonical source:** `SPEC__directive--fx-naming.md` in `flavio__keymaster/_specs/`
 
-**Everything is kebab-case.** Files, folders, all of it.
+This project follows the FX naming directive for all `.md`, `.json`, and `.pdf` files, and the TypeScript / TSX file naming rules defined in that spec.
 
-## Files
+## Quick Reference
+
+**File names (exterior) — ALL kebab-case:**
 
 | Type | Convention | Example |
 |------|-----------|---------|
@@ -16,36 +18,30 @@ v1 | Mar 09 2026 - 07:56 PM (MST)
 | Types | kebab-case | `meeting-types.ts` |
 | Constants | kebab-case | `app-config.ts` |
 | Routes | kebab-case (Next.js default) | `app/dashboard/page.tsx` |
+| CSS modules | kebab-case | `card-grid.module.css` |
+| Directories | kebab-case | `my-project/`, `tribal-knowledge/` |
 
-## Directories
+**Identifiers (interior) — React / TypeScript required casing:**
 
-All directories use kebab-case. No exceptions.
+| What | Casing | Why | Example |
+|------|--------|-----|---------|
+| Components | PascalCase | React requires it for JSX rendering | `function MeetingCard() { ... }` |
+| Hooks | camelCase with `use` prefix | React requires it for hook rules | `function useTranscript() { ... }` |
+| Functions / variables | camelCase | TypeScript convention | `const formatDuration = () => { ... }` |
+| Types / interfaces | PascalCase | TypeScript convention | `interface MeetingCardProps { ... }` |
+| Constants | UPPER_SNAKE_CASE | Convention for immutable values | `const MAX_RETRIES = 3` |
 
-## Inside the Files
+## Exterior vs Interior
 
-Standard React/TypeScript conventions apply:
+```txt
+components/meeting-card.tsx                ← file name: kebab-case
+  function MeetingCard() { ... }          ← inside: PascalCase (React JSX requirement)
 
-- **Components:** PascalCase (React requirement for JSX)
-- **Hooks:** camelCase with `use` prefix
-- **Functions/variables:** camelCase
-- **Types/interfaces:** PascalCase
-- **Constants:** UPPER_SNAKE_CASE or camelCase
+hooks/use-transcript.ts                    ← file name: kebab-case
+  function useTranscript() { ... }        ← inside: camelCase (React hook rules)
 
-```tsx
-// file: components/meeting-card.tsx
-
-export function MeetingCard({ title }: MeetingCardProps) {
-  const [isLive, setIsLive] = useState(false)
-  return <Card>{title}</Card>
-}
-```
-
-```tsx
-// file: hooks/use-transcript.ts
-
-export function useTranscript(meetingId: string) {
-  // ...
-}
+hooks/use-copy-clipboard.ts               ← file name: kebab-case
+  function useCopyClipboard() { ... }     ← inside: camelCase (React hook rules)
 ```
 
 ## Stack
