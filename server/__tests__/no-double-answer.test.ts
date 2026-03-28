@@ -61,7 +61,7 @@ describe("no-double-answer guard", () => {
 
   beforeEach(() => {
     conversation = createFakeConversation(80)
-    handler = createMessageHandler(conversation as any)
+    handler = createMessageHandler(conversation as any, 30)
     broadcasted = []
     broadcast = (data) => broadcasted.push(data)
     utterances = new Map()
@@ -113,9 +113,11 @@ describe("no-double-answer guard", () => {
     await new Promise((r) => setTimeout(r, 10))
 
     // Click a transcript card before the first response finishes
-    const second = handler({ type: "focus", id: "utt_001" }, utterances, broadcast)
+    handler({ type: "focus", id: "utt_001" }, utterances, broadcast)
 
-    await Promise.all([first, second])
+    // Wait for focus batch timer to fire + streaming to complete
+    await first
+    await new Promise((r) => setTimeout(r, 150))
 
     // Only the second (focus) request should complete fully
     expect(conversation.completeCount).toBe(1)
