@@ -33,7 +33,7 @@ SAMPLE_RATE = 16000
 CHANNELS = 1
 BLOCKSIZE = 4096
 DEVICE_ID = 0
-FLUSH_DELAY = 5.0
+FLUSH_DELAY = 8.0  # Fallback timer — UtteranceEnd is the primary flush signal
 
 DG_URL = (
     "wss://api.deepgram.com/v1/listen"
@@ -43,6 +43,8 @@ DG_URL = (
     "&diarize=true"
     "&punctuate=true"
     "&interim_results=false"
+    "&utterance_end_ms=1500"  # Deepgram fires UtteranceEnd after 1.5s silence
+    "&endpointing=500"        # Wait 500ms before finalizing a segment (reduces splitting)
     "&encoding=linear16"
     f"&sample_rate={SAMPLE_RATE}"
     f"&channels={CHANNELS}"
@@ -123,7 +125,15 @@ def main():
                 except TimeoutError:
                     continue
                 msg = json.loads(raw)
-                if msg.get("type") != "Results":
+                msg_type = msg.get("type", "")
+
+                # UtteranceEnd = Deepgram detected speaker stopped talking.
+                # This is the primary flush signal — much more reliable than a timer.
+                if msg_type == "UtteranceEnd":
+                    buffer.flush_remaining()
+                    continue
+
+                if msg_type != "Results":
                     continue
                 alt = msg["channel"]["alternatives"][0]
                 text = alt.get("transcript", "").strip()

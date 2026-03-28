@@ -17,6 +17,7 @@ export default function Home() {
   const [streamingContent, setStreamingContent] = useState("")
   const [isStreaming, setIsStreaming] = useState(false)
   const [speakerMap, setSpeakerMap] = useState<Map<string, number>>(new Map())
+  const [autoWatch, setAutoWatch] = useState(true)
   const wsRef = useRef<WebSocket | null>(null)
 
   const assignSpeakerIndex = useCallback(
@@ -52,9 +53,19 @@ export default function Home() {
             },
           ]
         })
+
+        // When auto-watch sends an interviewer utterance to Claude,
+        // show the transcript reference in the chat automatically
+        if (data._autoFocused) {
+          setMessages((msgs) => [
+            ...msgs,
+            { role: "transcript", content: data.text, speaker: data.speaker },
+          ])
+        }
       }
 
       if (data.type === "claude_chunk") {
+        setIsStreaming(true)
         setStreamingContent((prev) => prev + data.delta)
       }
 
@@ -69,6 +80,10 @@ export default function Home() {
           return ""
         })
         setIsStreaming(false)
+      }
+
+      if (data.type === "auto_watch") {
+        setAutoWatch(data.enabled)
       }
     }
 
@@ -102,6 +117,13 @@ export default function Home() {
     wsRef.current.send(JSON.stringify({ type: "focus", id: utterance.id }))
   }
 
+  function toggleAutoWatch() {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
+    wsRef.current.send(
+      JSON.stringify({ type: "set_auto_watch", enabled: !autoWatch }),
+    )
+  }
+
   return (
     <main className="flex h-screen">
       <div className="flex w-4/5 flex-col">
@@ -117,6 +139,8 @@ export default function Home() {
           utterances={utterances}
           speakerMap={speakerMap}
           onUtteranceClick={handleUtteranceClick}
+          autoWatch={autoWatch}
+          onToggleAutoWatch={toggleAutoWatch}
         />
       </div>
     </main>
