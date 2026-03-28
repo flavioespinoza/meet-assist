@@ -54,6 +54,7 @@ export class ClaudeConversation {
     this.history.push({ role: "user", content })
 
     this.abortController = new AbortController()
+    const signal = this.abortController.signal
 
     let fullResponse = ""
 
@@ -66,7 +67,7 @@ export class ClaudeConversation {
       })
 
       for await (const event of stream) {
-        if (this.abortController.signal.aborted) break
+        if (signal.aborted) break
 
         if (
           event.type === "content_block_delta" &&
