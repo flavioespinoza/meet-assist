@@ -43,6 +43,8 @@ DG_URL = (
     "&diarize=true"
     "&punctuate=true"
     "&interim_results=false"
+    "&endpointing=2000"
+    "&utterance_end_ms=3000"
     "&encoding=linear16"
     f"&sample_rate={SAMPLE_RATE}"
     f"&channels={CHANNELS}"
@@ -123,6 +125,12 @@ def main():
                 except TimeoutError:
                     continue
                 msg = json.loads(raw)
+
+                # Deepgram sends UtteranceEnd after utterance_end_ms of silence
+                if msg.get("type") == "UtteranceEnd":
+                    buffer.flush_remaining()
+                    continue
+
                 if msg.get("type") != "Results":
                     continue
                 alt = msg["channel"]["alternatives"][0]

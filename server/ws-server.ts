@@ -10,6 +10,9 @@ const conversation = new ClaudeConversation()
 // Store utterances so we can look them up by id
 const utterances = new Map<string, Utterance>()
 
+// Prevent concurrent Claude requests — abort current before starting new
+let isProcessing = false
+
 function broadcast(data: object) {
   const message = JSON.stringify(data)
   wss.clients.forEach((client) => {
@@ -54,27 +57,50 @@ wss.on("connection", (ws) => {
       if (msg.type === "focus") {
         const utt = utterances.get(msg.id)
         if (!utt) return
+
+        // Abort any in-flight Claude response before starting a new one
+        if (isProcessing) {
+          conversation.stop()
+          broadcast({ type: "claude_done" })
+        }
+
+        isProcessing = true
         const content = conversation.focusUtterance(utt.speaker, utt.text)
         await conversation.sendMessage(
           content,
           (delta) => broadcast({ type: "claude_chunk", delta }),
-          () => broadcast({ type: "claude_done" }),
+          () => {
+            isProcessing = false
+            broadcast({ type: "claude_done" })
+          },
         )
       }
 
       if (msg.type === "message") {
+        // Abort any in-flight Claude response before starting a new one
+        if (isProcessing) {
+          conversation.stop()
+          broadcast({ type: "claude_done" })
+        }
+
+        isProcessing = true
         await conversation.sendMessage(
           msg.text,
           (delta) => broadcast({ type: "claude_chunk", delta }),
-          () => broadcast({ type: "claude_done" }),
+          () => {
+            isProcessing = false
+            broadcast({ type: "claude_done" })
+          },
         )
       }
 
       if (msg.type === "stop") {
         conversation.stop()
+        isProcessing = false
       }
     } catch (err) {
       console.error("WebSocket message error:", err)
+      isProcessing = false
     }
   })
 
