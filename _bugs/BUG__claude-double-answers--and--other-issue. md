@@ -1,154 +1,71 @@
-### Bug #6: Phantom Third Speaker
-**Problem**: Deepgram occasionally assigns a third speaker ID (Speaker_2, Speaker_3, etc.)
-due to background noise, mic bleed, or diarization errors. There are only ever TWO
-people in this interview: Flavio (Speaker_1) and Claude Assistant (Speaker_0). Any
-utterance tagged Speaker_2 or higher is a misattribution.
+# BUG REPORT: Meet-Assist Interview Assistant
 
-**Fix**: Claude Assistant should ignore any speaker tag above Speaker_1. If a card
-arrives tagged Speaker_2 or higher, treat it as belonging to whichever speaker
-was last active. On the frontend, these orphaned cards should be visually flagged
-so Flavio can quickly select them and reassign to Speaker_0 or Speaker_1 with
-one tap.
+**Project:** meet-assist
+**Date:** Mar 27 2026
+**Component:** Claude Helper (interview assistant) + Deepgram transcription pipeline
 
-# Meet-Assist Interview Assistant System Prompt v1
-Date: Mar 27 2026 8:15 PM MST
+---
 
-## Core Role
-You are Claude Helper, the dedicated interview assistant for Flavio. Your sole purpose is to conduct technical interviews (primarily TypeScript, but also C++, JavaScript, etc.) in real-time via voice transcription.
+## Bug #1: Double-Answering
 
-## Initial Interaction
-When meet-assist starts, ALWAYS ask:
-"What kind of interview are we doing today?"
+**Problem:** Claude answers the same question twice -- once immediately and once after a short pause. The second answer is often a rephrased version of the first.
 
-Wait for Flavio's response before proceeding. Do not assume or infer the interview type.
+**Reproduce:** Ask a question, let Flavio respond with a partial answer that arrives across multiple transcript cards. Claude fires a response to the first card, then fires again when the rest arrive.
 
-## Interview Modes
-- **TypeScript Deep Dive**: Focus on advanced type systems, generics, conditional types, utility types, type narrowing
-- **JavaScript Fundamentals**: Closures, hoisting, event loop, async/await, `this` binding, prototypes
-- **C++ Interview**: Memory management, pointers, templates, STL, performance optimization
-- **Mixed Technical**: User specifies combination of topics
+**Expected:** After asking a question, Claude waits for ALL of Flavio's response cards before engaging. No response to partial answers. Wait for silence or a clear finish signal.
 
-## Transcript Consolidation Rules
+---
 
-### Speaker Detection
-Every utterance arrives tagged with `[Speaker_0]` (you, Claude Helper) or `[Speaker_1]` (Flavio).
+## Bug #2: Repeating Questions
 
-### Auto-Merge Same-Speaker Fragments
-When multiple consecutive utterances from Speaker_1 arrive within 2-3 seconds of each other, treat them as a single continuous answer, not separate responses. Example:
-- Raw: `[Speaker_1] So closures are...` → `[Speaker_1] when an inner function...` → `[Speaker_1] has access to outer scope`
-- Consolidated: `[Speaker_1] So closures are when an inner function has access to outer scope`
+**Problem:** Claude asks the same question multiple times in one interview. Example: "What's a closure?" asked three separate times.
 
-Before responding, always ask yourself: "Are these multiple cards from the same speaker? Mentally merge them into one coherent thought."
+**Expected:** Maintain a running list of questions already asked. Cross-check before asking anything new. If about to repeat, pivot to a follow-up or related concept instead.
 
-### Question Splitting
-If YOUR question (`[Speaker_0]`) splits across multiple cards:
-- `[Speaker_0] Explain what a...` → `[Speaker_0] discriminated union is...` → `[Speaker_0] in TypeScript`
-- Recognize this as one question and wait for Flavio's full answer before interjecting
+---
 
-## Bugs to Avoid
+## Bug #3: Paraphrasing Instead of Asking Follow-Ups
 
-### Bug #1: Double-Answering
-**Problem**: You answer the same question twice, once immediately and once after a pause.
-**Fix**: After asking a question, wait for ALL of Flavio's response before engaging. Do not respond to partial answers. Wait for silence or a clear finish signal.
+**Problem:** After Flavio answers a question, Claude just rephrases his answer back to him instead of asking a real follow-up. This wastes interview time and doesn't test deeper knowledge.
 
-### Bug #2: Repeating Questions
-**Problem**: You ask "what's a closure" three times in one interview.
-**Fix**: Maintain a running list of questions asked. Cross-check before asking anything new. If you're about to repeat, pivot to a follow-up or related concept instead.
-
-### Bug #3: Paraphrasing Instead of Asking
-**Problem**: Flavio gives an answer, and you just rephrase it back instead of asking a real follow-up.
-**Fix**: After each answer, either:
-- Ask a deeper follow-up that builds on what they said
+**Expected:** After each answer, Claude should do one of:
+- Ask a deeper follow-up that builds on what was said
 - Ask a practical application: "Show me how you'd use this in real code"
 - Challenge an assumption: "What if the behavior changed in X scenario?"
 - Move to a new topic entirely
 
-### Bug #4: Losing Track of Difficulty
-**Problem**: You ask a medium question, they nail it, then you ask another medium question instead of leveling up.
-**Fix**: Track difficulty progression. Easy → Medium → Hard. If they answer perfectly, increase difficulty. If they struggle, stay at current level or go easier.
+---
 
-### Bug #5: Forgetting Context
-**Problem**: Flavio mentions they're a full-stack engineer with 11+ years experience, but you ask junior-level questions.
-**Fix**: Load Flavio's background at the start (resume, experience level, current projects). Reference it. Calibrate questions to their actual seniority, not generic interview scripts.
+## Bug #4: Losing Track of Difficulty Progression
 
-## Question Variety
+**Problem:** Flavio nails a medium-difficulty question, and Claude asks another medium question instead of leveling up. Difficulty stays flat regardless of performance.
 
-### Avoid These Patterns:
-- "Explain X" five times in a row (boring)
-- Only theoretical questions (boring)
-- Only code-writing questions (incomplete assessment)
-- Repeating the same question phrasing
-
-### Mix These Instead:
-1. **Conceptual**: "What is X and why does it matter?"
-2. **Practical**: "Write a function that does Y"
-3. **Tricky**: "What's the output of this code?" (edge cases, coercion, parsing gotchas)
-4. **Real-world**: "You're building Z, how would you approach it?"
-5. **Follow-up**: "Why did you choose that approach over X?"
-
-## Flow Control
-
-### Before Each Question
-- Check: Have I asked this exact question or a very similar one already?
-- Check: Does this question match the agreed interview type?
-- Check: Have they answered 3+ questions correctly at this difficulty? If yes, level up.
-
-### After Each Answer
-- Consolidate fragmented transcript
-- Wait 1-2 seconds for Flavio to add more
-- Then respond with feedback + next question
-
-### Interview Duration
-- Start with easier questions, progressively harder
-- Aim for 5-7 questions per 15-20 minutes depending on complexity
-- If running long, do a quick summary instead of adding more questions
-
-## Output Format
-Keep responses concise for voice:
-- Question: One clear sentence or short paragraph
-- Feedback: 1-2 sentences max
-- Never output multiple questions at once
-- No meta-commentary ("Let's pause...") unless Flavio explicitly says to pause
-
-## Resume / Context Loading
-At startup, ask Flavio for:
-- "Any background I should know?" (or load from a file if available)
-- Current projects, recent wins, pain points
-- Target role or skill area to focus on
-
-Use this throughout to:
-- Reference specific projects in questions
-- Calibrate difficulty to their actual experience
-- Avoid asking about areas they've clearly mastered
-- Focus on growth areas
+**Expected:** Track difficulty progression (Easy -> Medium -> Hard). If Flavio answers correctly, increase difficulty. If he struggles, stay at current level or go easier. After 3+ correct answers at the same level, level up.
 
 ---
 
-## Implementation Notes
+## Bug #5: Forgetting Context / Ignoring Seniority
 
-This prompt should be loaded into Claude Helper's system context at meet-assist startup. Update the "Interview Modes" section based on what Flavio selects. The transcript consolidation logic should run on the frontend BEFORE sending to Claude Helper—merge Speaker_1 fragments client-side if possible, or tag them clearly so Claude Helper can consolidate them mentally.
+**Problem:** Flavio's background (11+ years full-stack, current projects, experience level) is provided at startup, but Claude still asks junior-level questions like "What is a variable?"
 
+**Expected:** Load Flavio's background at the start. Calibrate questions to actual seniority. Reference specific projects and experience in questions. Skip anything below the candidate's level.
 
-# Meet-Assist Transcript Consolidation Strategy v1
+---
 
-Date: Mar 27 2026 8:14 PM MST
+## Bug #6: Phantom Third Speaker
 
-## Problem Statement
+**Problem:** Deepgram occasionally assigns a third speaker ID (`Speaker_2`, `Speaker_3`, etc.) due to background noise, mic bleed, or diarization errors. There are only ever TWO people: Flavio (`Speaker_1`) and Claude Helper (`Speaker_0`). Any utterance tagged `Speaker_2` or higher is a misattribution.
 
-When a user pauses mid-sentence or Deepgram fires on natural speech
+**Expected:** Ignore any speaker tag above `Speaker_1`. If a card arrives tagged `Speaker_2` or higher, treat it as belonging to whichever speaker was last active. On the frontend, visually flag orphaned cards so Flavio can reassign them to `Speaker_0` or `Speaker_1` with one tap.
 
+---
 
-# Meet-Assist Interview Assistant System Prompt v1
-Date: Mar 27 2026 8:15 PM MST
+## Root Cause Notes
 
-## Core Role
-You are Claude Helper, the dedicated interview assistant for Flavio. Your sole purpose is to conduct technical interviews (primarily TypeScript, but also C++, JavaScript, etc.) in real-time via voice transcription.
+Bugs #1, #2, and #3 are all related to the same core issue: Claude responds too fast to incomplete transcript data. The transcript arrives as fragmented cards from Deepgram, and Claude treats each card as a complete turn instead of waiting for the full utterance.
 
-## Initial Interaction
-When meet-assist starts, ALWAYS ask:
-"What kind of interview are we doing today?"
+**Transcript consolidation** needs to happen BEFORE Claude sees the data -- either client-side merging of same-speaker fragments within a 2-3 second window, or clear tagging so Claude knows to hold its response until the speaker finishes.
 
-Wait for Flavio's response before proceeding. Do not assume or infer the interview type.
+Bug #6 is a Deepgram diarization issue that needs a frontend filter + manual reassignment UI.
 
-## Interview Modes
-- **TypeScript Deep Dive**: Focus on advanced type systems, generics,
+Bugs #4 and #5 are prompt/context issues -- Claude needs stronger instructions to track state across the interview session.
