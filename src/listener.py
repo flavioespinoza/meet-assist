@@ -2,7 +2,7 @@
 """
 listener.py — Captures mic audio and streams to Deepgram for real-time
 transcription with speaker diarization. Buffers fragments from the same
-speaker and flushes when the speaker changes or after a silence gap.
+speaker and flushes when the speaker changes or after silence.
 Appends each complete utterance to transcript.jsonl.
 Uses raw websockets instead of the Deepgram SDK for reliability.
 """
@@ -32,8 +32,8 @@ TRANSCRIPT_FILE = PROJECT_ROOT / "transcript.jsonl"
 SAMPLE_RATE = 16000
 CHANNELS = 1
 BLOCKSIZE = 4096
-DEVICE_ID = 0  # Yeti Stereo Microphone
-FLUSH_DELAY = 3.5  # seconds of silence before flushing buffer
+DEVICE_ID = 0
+FLUSH_DELAY = 5.0
 
 DG_URL = (
     "wss://api.deepgram.com/v1/listen"
@@ -43,6 +43,8 @@ DG_URL = (
     "&diarize=true"
     "&punctuate=true"
     "&interim_results=false"
+    "&endpointing=2000"
+    "&utterance_end_ms=3000"
     "&encoding=linear16"
     f"&sample_rate={SAMPLE_RATE}"
     f"&channels={CHANNELS}"
@@ -123,6 +125,12 @@ def main():
                 except TimeoutError:
                     continue
                 msg = json.loads(raw)
+
+                # Deepgram sends UtteranceEnd after utterance_end_ms of silence
+                if msg.get("type") == "UtteranceEnd":
+                    buffer.flush_remaining()
+                    continue
+
                 if msg.get("type") != "Results":
                     continue
                 alt = msg["channel"]["alternatives"][0]

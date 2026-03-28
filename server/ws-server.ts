@@ -1,11 +1,13 @@
 import { WebSocketServer, WebSocket } from "ws"
 import { watchTranscript, type Utterance } from "./transcript-watcher"
 import { ClaudeConversation } from "./claude-conversation"
+import { createMessageHandler, type BroadcastFn } from "./message-handler"
 
 const PORT = 3001
 
 const wss = new WebSocketServer({ port: PORT })
 const conversation = new ClaudeConversation()
+const handler = createMessageHandler(conversation)
 
 // Store utterances so we can look them up by id
 const utterances = new Map<string, Utterance>()
@@ -48,34 +50,8 @@ wss.on("connection", (ws) => {
   }
 
   ws.on("message", async (raw) => {
-    try {
-      const msg = JSON.parse(raw.toString())
-
-      if (msg.type === "focus") {
-        const utt = utterances.get(msg.id)
-        if (!utt) return
-        const content = conversation.focusUtterance(utt.speaker, utt.text)
-        await conversation.sendMessage(
-          content,
-          (delta) => broadcast({ type: "claude_chunk", delta }),
-          () => broadcast({ type: "claude_done" }),
-        )
-      }
-
-      if (msg.type === "message") {
-        await conversation.sendMessage(
-          msg.text,
-          (delta) => broadcast({ type: "claude_chunk", delta }),
-          () => broadcast({ type: "claude_done" }),
-        )
-      }
-
-      if (msg.type === "stop") {
-        conversation.stop()
-      }
-    } catch (err) {
-      console.error("WebSocket message error:", err)
-    }
+    const msg = JSON.parse(raw.toString())
+    await handler(msg, utterances, broadcast)
   })
 
   ws.on("close", () => {

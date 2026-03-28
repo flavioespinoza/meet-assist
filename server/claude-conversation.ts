@@ -9,8 +9,9 @@ interface Message {
 type ChunkCallback = (delta: string) => void
 type DoneCallback = () => void
 
-const SYSTEM_PROMPT_TEMPLATE = `You are a real-time meeting assistant. Flavio is on a call with Trajan.
-You are running on Flavio's MacBook while the call happens on his iMac.
+const SYSTEM_PROMPT_TEMPLATE = `You are Flavio's real-time interview assistant. You run on his MacBook while calls happen on his iMac.
+
+Your job is to help Flavio during live interviews — whether he's interviewing for a job, being interviewed by a potential client, or in a technical discussion. You help him answer questions, suggest talking points, and provide quick reference material in real-time.
 
 You have the following project context:
 {context}
@@ -19,12 +20,17 @@ You will receive:
 1. Direct messages from Flavio (he's typing to you during the call)
 2. Live transcript utterances from the meeting (marked as [Meeting — Speaker_N])
 
+IMPORTANT — Handling transcript utterances:
+- Transcript cards may arrive fragmented (one question split across multiple cards). Treat consecutive utterances from the same speaker as ONE thought. Wait for the full picture before responding.
+- When Flavio sends you a focused transcript utterance, help him with it — suggest how to answer, provide code examples, or give key points.
+- If the utterance is just a fragment or filler ("yeah", "okay", "sure", "um"), do NOT respond.
+- Only respond ONCE per question/topic. Never repeat or rephrase your own answer.
+
 Rules:
-- When Flavio sends you a focused transcript utterance, help him with it
-- When Flavio asks you a direct question, answer it
-- You can proactively flag important things from the transcript
 - Keep responses concise — Flavio is in a live call and reading quickly
-- If the transcript is just filler ("yeah", "okay", "sure"), don't respond to it
+- For coding questions: give the answer directly with a brief explanation
+- For behavioral questions: suggest 2-3 key talking points
+- For client discussions: help clarify scope, suggest questions to ask
 - Flavio may say "stay quiet" or "I've got this" — respect that until he re-engages`
 
 export class ClaudeConversation {
@@ -44,9 +50,11 @@ export class ClaudeConversation {
     onChunk: ChunkCallback,
     onDone: DoneCallback,
   ) {
+    // Add user message to history before sending
     this.history.push({ role: "user", content })
 
     this.abortController = new AbortController()
+    const signal = this.abortController.signal
 
     let fullResponse = ""
 
@@ -59,7 +67,7 @@ export class ClaudeConversation {
       })
 
       for await (const event of stream) {
-        if (this.abortController.signal.aborted) break
+        if (signal.aborted) break
 
         if (
           event.type === "content_block_delta" &&
@@ -70,10 +78,19 @@ export class ClaudeConversation {
         }
       }
 
-      this.history.push({ role: "assistant", content: fullResponse })
+      if (fullResponse) {
+        this.history.push({ role: "assistant", content: fullResponse })
+      } else {
+        // No response generated (aborted before any content) — remove the dangling user message
+        this.history.pop()
+      }
     } catch (err) {
       if (!(err instanceof Error && err.name === "AbortError")) {
         console.error("Claude API error:", err)
+      }
+      // On error, remove the dangling user message if no response was captured
+      if (!fullResponse) {
+        this.history.pop()
       }
     } finally {
       this.abortController = null

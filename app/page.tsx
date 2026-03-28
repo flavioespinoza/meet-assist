@@ -60,7 +60,8 @@ export default function Home() {
 
       if (data.type === "claude_done") {
         setStreamingContent((prev) => {
-          if (prev) {
+          // Only commit to messages if there's actual content (not an aborted stream)
+          if (prev.trim()) {
             setMessages((msgs) => [
               ...msgs,
               { role: "assistant", content: prev },
