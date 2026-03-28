@@ -33,7 +33,7 @@ SAMPLE_RATE = 16000
 CHANNELS = 1
 BLOCKSIZE = 4096
 DEVICE_ID = 0  # Yeti Stereo Microphone
-FLUSH_DELAY = 1.5  # seconds of silence before flushing buffer
+FLUSH_DELAY = 3.5  # seconds of silence before flushing buffer
 
 DG_URL = (
     "wss://api.deepgram.com/v1/listen"
