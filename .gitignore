@@ -8,6 +8,7 @@ node_modules/
 next-env.d.ts
 transcript.jsonl
 meeting-*.json
+*.tsbuildinfo
 
 # === Override global gitignore for this project ===
 # The global .gitignore_global blocks heavy files by default.
