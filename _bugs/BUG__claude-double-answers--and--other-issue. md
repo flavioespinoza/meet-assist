@@ -16,56 +16,26 @@
 
 ---
 
-## Bug #2: Repeating Questions
+## Bug #2: Deepgram splitting paragraphs or questions into incoherent multiple cards.
 
-**Problem:** Claude asks the same question multiple times in one interview. Example: "What's a closure?" asked three separate times.
+This is with the `listener.py` and the DeepGram API key or the DeepGram API. So what it does is it breaks a question into multiple cards. And so I try to click on a couple of cards, but it confuses Claude because Claude doesn't know what to answer.
 
-**Expected:** Maintain a running list of questions already asked. Cross-check before asking anything new. If about to repeat, pivot to a follow-up or related concept instead.
+Say I ask a question like "give me four common methods in JavaScript that deal specifically with arrays." Well, it breaks that into 15 different lines because I don't know why. But we've seemed to have gotten that problem solved a little bit. But DeepGram will just keep splitting our questions into separate cards.
 
----
+Now, one thing I'd like to do is to be able to select a group of cards and say, okay, these are all the same question. And that way Claude wouldn't get confused. But if you run DeepGram, I've solved it by changing—you can see the changes I made in `source/listener.py`. It's getting better, but still, it knows I'm speaker number one. And then I have an online person as speaker number two. But it just keeps breaking all of my questions or answers into multiple sections.
 
-## Bug #3: Paraphrasing Instead of Asking Follow-Ups
+Like, if I were to ask a question as an interviewer—"create a JavaScript function that takes in an array of numbers and removes duplicates"—it would break that into four cards. And so how am I supposed to combine those back to get Claude to know how to answer the question? That's the problem.
 
-**Problem:** After Flavio answers a question, Claude just rephrases his answer back to him instead of asking a real follow-up. This wastes interview time and doesn't test deeper knowledge.
+And if you look in the console, it knows I'm speaker number one or I'm speaker zero, but I want it to wait until all of that's consolidated and then ask one question. I mean, we've gotten it okay, but if I ask a question that gets split into five cards or ten cards, **Claude should know that's all the same question**. But he treats it like it's 17 different questions because I have to click on each one and then he gets confused because he doesn't wait.
 
-**Expected:** After each answer, Claude should do one of:
-- Ask a deeper follow-up that builds on what was said
-- Ask a practical application: "Show me how you'd use this in real code"
-- Challenge an assumption: "What if the behavior changed in X scenario?"
-- Move to a new topic entirely
+So we need a way for him to read the stream and intelligently say, "oh, this must be one question," or to get DeepGram to stop splitting my sentences into like 20 different cards. A backup would be able to select each card like a checkbox and then say combine, but I don't want to do that. So that's the problem in a nutshell.
 
 ---
 
-## Bug #4: Losing Track of Difficulty Progression
+## Bug #3: Claude doesn't know what he's supposed to be doing. His whole job is to help me in interviews. So I probably need to one, give him my resume and two, load him with an agent that is an interview helper agent.
 
-**Problem:** Flavio nails a medium-difficulty question, and Claude asks another medium question instead of leveling up. Difficulty stays flat regardless of performance.
+And, or a, like for example, today was not an interview for a job. It was an interview for a new client who wanted a piece of software for me to build. So I would like to be able to, you know, switch modes by adding different agents to him via Markdown.
 
-**Expected:** Track difficulty progression (Easy -> Medium -> Hard). If Flavio answers correctly, increase difficulty. If he struggles, stay at current level or go easier. After 3+ correct answers at the same level, level up.
+Bug three is, you know, something we can work out, but we need to really get deep, Graham, to understand don't break a speaker's, you know, question or discussion or whatever into multiple cards. You know, you got to wait till they stop talking, then you create a card, especially in an interview because when interviews get really complex, I mean, an interviewer, whether they be a potential customer or a potential employer, they go on for a long time.
 
----
-
-## Bug #5: Forgetting Context / Ignoring Seniority
-
-**Problem:** Flavio's background (11+ years full-stack, current projects, experience level) is provided at startup, but Claude still asks junior-level questions like "What is a variable?"
-
-**Expected:** Load Flavio's background at the start. Calibrate questions to actual seniority. Reference specific projects and experience in questions. Skip anything below the candidate's level.
-
----
-
-## Bug #6: Phantom Third Speaker
-
-**Problem:** Deepgram occasionally assigns a third speaker ID (`Speaker_2`, `Speaker_3`, etc.) due to background noise, mic bleed, or diarization errors. There are only ever TWO people: Flavio (`Speaker_1`) and Claude Helper (`Speaker_0`). Any utterance tagged `Speaker_2` or higher is a misattribution.
-
-**Expected:** Ignore any speaker tag above `Speaker_1`. If a card arrives tagged `Speaker_2` or higher, treat it as belonging to whichever speaker was last active. On the frontend, visually flag orphaned cards so Flavio can reassign them to `Speaker_0` or `Speaker_1` with one tap.
-
----
-
-## Root Cause Notes
-
-Bugs #1, #2, and #3 are all related to the same core issue: Claude responds too fast to incomplete transcript data. The transcript arrives as fragmented cards from Deepgram, and Claude treats each card as a complete turn instead of waiting for the full utterance.
-
-**Transcript consolidation** needs to happen BEFORE Claude sees the data -- either client-side merging of same-speaker fragments within a 2-3 second window, or clear tagging so Claude knows to hold its response until the speaker finishes.
-
-Bug #6 is a Deepgram diarization issue that needs a frontend filter + manual reassignment UI.
-
-Bugs #4 and #5 are prompt/context issues -- Claude needs stronger instructions to track state across the interview session.
+So that's, that's the major one, I think, is bug number two. And bug number one is just annoying, but it needs to be solved.
